@@ -1,67 +1,31 @@
+console.log("Inicio de programa");
 
-const argumentos = process.argv.slice(2);
+const args = process.argv.slice(2);
+const API = "https://fakestoreapi.com/";
 
-const [metodo, recurso, ...datos] = argumentos;
-
-// Consultar todos los productos o uno en particular
+// Consultar todos los productos o buscar uno por su ID
 async function obtenerProductos(url) {
     try {
-        const respuesta = await fetch(`https://fakestoreapi.com/${url}`);
+        const respuesta = await fetch(`${API}${url}`);
 
         if (!respuesta.ok) {
             throw new Error(`Error en la petición: ${respuesta.status}`);
         }
 
-        const productos = await respuesta.json();
-
-        if (!productos) {
-            console.log("No se encontró el producto");
-            return;
-        }
-
-        console.log(productos);
+        const data = await respuesta.json();
+        return data;
 
     } catch (error) {
-        console.error("Error al obtener productos:", error.message);
+        console.log("Error al consultar productos:", error.message);
         process.exitCode = 1;
+        return null;
     }
 }
 
-// Crear un producto nuevo
-async function crearProducto(title, price, category) {
+// Eliminar un producto
+async function eliminarProducto(producto) {
     try {
-        const respuesta = await fetch("https://fakestoreapi.com/products", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                title: title,
-                price: Number(price),
-                category: category
-            })
-        });
-
-        if (!respuesta.ok) {
-            throw new Error(`Error en la petición: ${respuesta.status}`);
-        }
-
-        const productoCreado = await respuesta.json();
-
-        console.log("Producto creado correctamente:");
-        console.log(productoCreado);
-        console.log("ID del producto creado:", productoCreado.id);
-
-    } catch (error) {
-        console.error("Error al crear el producto:", error.message);
-        process.exitCode = 1;
-    }
-}
-
-// Eliminar un producto mediante su ID
-async function eliminarProducto(url) {
-    try {
-        const respuesta = await fetch(`https://fakestoreapi.com/${url}`, {
+        const respuesta = await fetch(`${API}${producto}`, {
             method: "DELETE"
         });
 
@@ -69,75 +33,84 @@ async function eliminarProducto(url) {
             throw new Error(`Error en la petición: ${respuesta.status}`);
         }
 
-        const productoEliminado = await respuesta.json();
-
-        if (!productoEliminado) {
-            console.log("No se encontró el producto");
-            return;
-        }
-
-        console.log("Respuesta de eliminación:");
-        console.log(productoEliminado);
+        const data = await respuesta.json();
+        return data;
 
     } catch (error) {
-        console.error("Error al eliminar el producto:", error.message);
+        console.log("Error al eliminar el producto:", error.message);
+        process.exitCode = 1;
+        return null;
+    }
+}
+
+// Crear un producto con los datos recibidos por la terminal
+async function crearProducto(producto) {
+    try {
+        const respuesta = await fetch(`${API}products`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(producto)
+        });
+
+        if (!respuesta.ok) {
+            throw new Error(`Error en la petición: ${respuesta.status}`);
+        }
+
+        const data = await respuesta.json();
+        console.log("Producto creado:", data);
+        console.log("ID del producto creado:", data.id);
+
+    } catch (error) {
+        console.log("Error al crear el producto:", error.message);
         process.exitCode = 1;
     }
 }
 
-// Procesar los comandos ingresados desde la terminal
-switch (metodo) {
-
+// Elegir la operación según el comando ingresado
+switch (args[0]?.toUpperCase()) {
     case "GET":
-
-        if (recurso === "products") {
-            obtenerProductos(recurso);
-
-        } else if (/^products\/[1-9]\d*$/.test(recurso || "")) {
-            obtenerProductos(recurso);
-
+        if (args[1] === "products" || /^products\/[1-9]\d*$/.test(args[1] || "")) {
+            const productos = await obtenerProductos(args[1]);
+            if (productos === null) {
+                if (process.exitCode !== 1) console.log("Producto no encontrado");
+            } else {
+                console.log(productos);
+            }
         } else {
             console.log("Comando GET incompleto o incorrecto");
         }
-
         break;
 
     case "POST":
-
-        if (recurso === "products" && datos.length === 3) {
-
-            const [title, price, category] = datos;
-
-            if (title.trim() !== "" &&
-                category.trim() !== "" &&
-                price.trim() !== "" &&
-                Number.isFinite(Number(price)) &&
-                Number(price) > 0) {
-
-                crearProducto(title, price, category);
-
-            } else {
-                console.log("Los datos del producto no son válidos");
-            }
-
+        if (args[1] === "products" && args.length === 5 &&
+            args[2].trim() && args[4].trim() && args[3].trim() &&
+            Number.isFinite(Number(args[3])) && Number(args[3]) > 0) {
+            const producto = {
+                title: args[2],
+                price: Number(args[3]),
+                category: args[4]
+            };
+            await crearProducto(producto);
         } else {
             console.log("Comando POST incompleto o incorrecto");
         }
-
         break;
 
     case "DELETE":
-
-        if (/^products\/[1-9]\d*$/.test(recurso || "")) {
-            eliminarProducto(recurso);
-
+        if (/^products\/[1-9]\d*$/.test(args[1] || "")) {
+            const respuesta = await eliminarProducto(args[1]);
+            if (respuesta === null) {
+                if (process.exitCode !== 1) console.log("Producto no encontrado");
+            } else {
+                console.log("Respuesta de eliminación:", respuesta);
+            }
         } else {
             console.log("Comando DELETE incompleto o incorrecto");
         }
-
         break;
 
     default:
-        console.log("Comando no reconocido");
-        console.log("Utilizá GET, POST o DELETE");
+        console.log("Comando incorrecto. Usá GET, POST o DELETE.");
 }
